@@ -1,0 +1,91 @@
+---
+title: "Temperature Monitoring"
+author: "Mastan Rao Parimi"
+output: 
+  flexdashboard::flex_dashboard:
+    orientation: rows
+    vertical_layout: scroll
+---
+
+```{r}
+library(flexdashboard)
+library(ggplot2)
+library(dplyr)
+library(plotly)
+library(RColorBrewer)
+library(tm)
+iot_temp <-  read.csv(file = "data/data_iot_temperature.csv",header = TRUE)
+iot_temp <- iot_temp %>% 
+  mutate(Hour= format(as.POSIXct(strptime(iot_temp$date,"%Y-%m-%d %H:%M")),"%H"))
+iot_temp$date <- as.Date(iot_temp$date)
+iot_temp <- iot_temp %>% 
+  mutate(Year= format(as.Date(iot_temp$date,'%d-%m-%Y %H:%M'),'%y'))
+iot_temp <- iot_temp %>% 
+  mutate(month= format(as.Date(iot_temp$date,'%d-%m-%Y %H:%M'),'%m'))
+iot_temp <- iot_temp %>% 
+  mutate(day= format(as.Date(iot_temp$date,'%d-%m-%Y %H:%M'),'%d'))
+```
+
+Row
+------------------------------------------------------------------------------
+### highest temperature
+```{r}
+max_temp <- max(iot_temp$temperature)
+valueBox(max_temp, icon="fa fa-sun-o",color="RED")
+```
+
+### Average temperatue
+```{r}
+avg_temp <- round(mean(iot_temp$temperature))
+valueBox(avg_temp,icon="fa fa-skyatlas",color="orange")
+```
+
+### Lowest temperature
+```{r}
+min_temp = min(iot_temp$temperature)
+valueBox(min_temp,icon="fa fa-asterisk",color="blue")
+```
+
+Row {data-width=650}
+-----------------------------------------------------------------------
+
+### Day wise average temperature
+
+```{r}
+temp_day <- iot_temp %>% group_by(day,month) %>% 
+  summarise(avg_temp=mean(temperature))
+line_plot <- ggplot(temp_day,aes(x=day,y=avg_temp,group=day)) + 
+  geom_line(group = 1) + xlab("Day of month") + ylab("temperature in degree C")
+ggplotly(line_plot)
+```
+
+### frequency distribution for temperature has exceeded the lower limit (<25,low temperature) and upper limit (>30, high temperature)
+```{r}
+temp_labels <- c("low","high")
+iot_temp <- iot_temp %>% 
+  mutate(temp_category = cut(temperature,breaks = c(-Inf,25,30,Inf),labels = c("low","middle","high")))
+temp_cat <-  iot_temp %>% filter(temp_category %in% temp_labels) %>% 
+  group_by(day,temp_category) %>% summarise(sum=n())
+g1 <- ggplot(temp_cat,aes(x=day,sum,fill=temp_category)) + 
+  geom_bar(stat = 'identity') + xlab("Day") + ylab("Number of times")
+ggplotly(g1)
+```
+
+Row {data-width=350}
+-----------------------------------------------------------------------
+
+### Tile map day Vs hour of the day
+```{r}
+temp_hour <- iot_temp %>% group_by(day,Hour) %>% 
+  summarise(avg_temperature=mean(temperature))
+tile_map <- ggplot(temp_hour, aes(x=day,y=Hour,fill = -avg_temperature)) + 
+  geom_raster() + xlab("Day") + ylab("Hour of the day")
+ggplotly(tile_map)
+```
+
+### Day wise visualize the distribution of temperature using one box plot per day
+```{r}
+boxplot <- ggplot(iot_temp,aes(x=day,y=temperature)) + geom_boxplot()
+ggplotly(boxplot)
+```
+
